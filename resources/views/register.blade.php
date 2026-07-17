@@ -1,41 +1,40 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>CP-Arena Sign Up</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 360px; }
-        h2 { text-align: center; color: #333; margin-bottom: 25px; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
-        button { width: 100%; padding: 12px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px; }
-        button:hover { background: #1976D2; }
-        .link { text-align: center; margin-top: 18px; font-size: 14px; }
-        .link a { color: #2196F3; text-decoration: none; font-weight: bold; }
-        .error { color: #d32f2f; font-size: 13px; text-align: center; margin: 3px 0; }
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h2>📝 CP-Arena Sign Up</h2>
-        
-        @if($errors->any())
-            @foreach($errors->all() as $error)
-                <p class="error">{{ $error }}</p>
-            @endforeach
-        @endif
+@extends('layouts.app')
 
-        <form method="POST" action="/register">
-            @csrf
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="email" name="email" placeholder="Email Address" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <input type="password" name="password_confirmation" placeholder="Confirm Password" required>
-            <button type="submit">Sign Up</button>
-        </form>
-        
-        <div class="link">
-            <p>Already have an account? <a href="/login">Login here</a></p>
+@section('title', 'Sign Up - CP-Arena')
+
+@section('content')
+<div class="login-box">
+    <h2>Create Account</h2>
+
+    @if($errors->any())
+        @foreach($errors->all() as $error)
+            <div class="alert alert-error" style="margin-bottom: 10px; padding: 8px 12px; font-size: 13px;">{{ $error }}</div>
+        @endforeach
+    @endif
+
+    <form method="POST" action="/register">
+        @csrf
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" class="form-control" placeholder="Choose a username" required>
         </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" class="form-control" placeholder="Min 6 characters" required>
+        </div>
+        <div class="form-group">
+            <label>Confirm Password</label>
+            <input type="password" name="password_confirmation" class="form-control" placeholder="Re-enter password" required>
+        </div>
+        <button type="submit" class="btn btn-success">Sign Up</button>
+    </form>
+
+    <div class="link">
+        Already have an account? <a href="/login">Login here</a>
     </div>
-</body>
-</html>
+</div>
+@endsection

@@ -14,6 +14,8 @@ return new class extends Migration
             $table->integer('rating')->nullable();
             $table->string('tags', 255)->nullable();
             $table->string('platform', 50)->nullable();
+            $table->string('cf_contest_id', 20)->nullable();
+            $table->string('cf_index', 10)->nullable();
         });
     }
 

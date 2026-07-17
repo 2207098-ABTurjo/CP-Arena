@@ -13,8 +13,6 @@ return new class extends Migration
             $table->integer('user_id');
             $table->integer('rating')->nullable();
             $table->integer('solved_count')->default(0);
-            
-            $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
         });
     }
 

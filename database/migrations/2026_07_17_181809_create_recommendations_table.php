@@ -13,9 +13,6 @@ return new class extends Migration
             $table->integer('user_id');
             $table->integer('problem_id');
             $table->date('rec_date')->nullable();
-            
-            $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
-            $table->foreign('problem_id')->references('problem_id')->on('problems')->onDelete('cascade');
         });
     }
 

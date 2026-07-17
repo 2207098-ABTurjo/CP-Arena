@@ -5,28 +5,10 @@
 @section('content')
 <div class="page-header">
     <h1>Welcome back, {{ $username }}!</h1>
-    <div>
-        <a href="/profile" class="btn btn-primary btn-sm">Profile</a>
-        @if($cf_handle)
-            <a href="/sync-codeforces" class="btn btn-success btn-sm">Sync CF</a>
-        @endif
-    </div>
+    @if($cf_handle)
+        <span style="color: #7f8c8d; font-size: 14px;">CF Handle: <strong>{{ $cf_handle }}</strong></span>
+    @endif
 </div>
-
-@if($cf_handle)
-<div class="card" style="background: #e8f4f8;">
-    <p style="font-size: 14px; color: #2980b9;">
-        Codeforces handle: <strong>{{ $cf_handle }}</strong> | 
-        <a href="/sync-codeforces" style="color: #2980b9;">Sync submissions</a>
-    </p>
-</div>
-@else
-<div class="card" style="background: #fff3e0;">
-    <p style="font-size: 14px; color: #e65100;">
-        No Codeforces handle set. <a href="/profile" style="color: #e65100; font-weight: 500;">Add your handle</a> to sync submissions.
-    </p>
-</div>
-@endif
 
 <div class="stats-grid">
     <div class="stat-card">
@@ -96,7 +78,7 @@
                     <th>Problem</th>
                     <th>Platform</th>
                     <th>Verdict</th>
-                    <th>Time</th>
+                    <th>Source</th>
                 </tr>
             </thead>
             <tbody>
@@ -115,7 +97,13 @@
                             <span class="verdict-re">{{ $sub->status }}</span>
                         @endif
                     </td>
-                    <td style="color: #7f8c8d; font-size: 13px;">{{ $sub->submission_time }}</td>
+                    <td>
+                        @if($sub->source == 'codeforces')
+                            <span class="cf-badge">CF</span>
+                        @else
+                            <span class="badge badge-blue">Web</span>
+                        @endif
+                    </td>
                 </tr>
                 @endforeach
             </tbody>
@@ -142,7 +130,11 @@
             <tbody>
                 @foreach($recommendations as $rec)
                 <tr>
-                    <td><a href="/problems/{{ $rec->problem_id }}" style="color: #3498db; text-decoration: none;">{{ $rec->title }}</a></td>
+                    <td>
+                        <a href="/problems/{{ $rec->problem_id }}" style="color: #3498db; text-decoration: none;">
+                            {{ $rec->title }}
+                        </a>
+                    </td>
                     <td><span class="badge badge-purple">{{ $rec->rating }}</span></td>
                     <td>
                         <div class="tag-list">

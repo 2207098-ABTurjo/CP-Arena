@@ -43,6 +43,7 @@ return [
             'synchronous' => null,
             'transaction_mode' => 'DEFERRED',
         ],
+        
         'oracle' => [
             'driver' => 'oracle',
             'host' => env('DB_HOST', '127.0.0.1'),

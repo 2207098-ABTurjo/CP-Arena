@@ -62,12 +62,102 @@ class AuthController extends Controller
         return redirect('/login');
     }
 
+    public function profile()
+    {
+        if (!Session::has('user_id')) {
+            return redirect('/login');
+        }
+
+        $userId = Session::get('user_id');
+        $user = DB::selectOne("SELECT user_id, username, email, cf_handle FROM users WHERE user_id = ?", [$userId]);
+
+        return view('profile', ['user' => $user]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        if (!Session::has('user_id')) {
+            return redirect('/login');
+        }
+
+        $userId = Session::get('user_id');
+
+        $request->validate([
+            'cf_handle' => 'nullable|string|max:50',
+        ]);
+
+        DB::update("UPDATE users SET cf_handle = ? WHERE user_id = ?", [
+            $request->cf_handle,
+            $userId
+        ]);
+
+        return redirect('/profile')->with('success', 'Profile updated successfully!');
+    }
+
     public function home()
     {
         if (!Session::has('user_id')) {
             return redirect('/login');
         }
 
-        return view('home', ['username' => Session::get('username')]);
+        $userId = Session::get('user_id');
+
+        // Get stats using direct SQL
+        $totalSolves = DB::selectOne("
+            SELECT COUNT(*) as cnt FROM submissions WHERE user_id = ? AND status = 'Accepted'
+        ", [$userId])->cnt ?? 0;
+
+        $ratingCats = DB::selectOne("
+            SELECT COUNT(*) as cnt FROM solve_ratings WHERE user_id = ?
+        ", [$userId])->cnt ?? 0;
+
+        $tagCats = DB::selectOne("
+            SELECT COUNT(*) as cnt FROM solve_tags WHERE user_id = ?
+        ", [$userId])->cnt ?? 0;
+
+        // Get rating distribution
+        $ratingDist = DB::select("
+            SELECT rating, solved_count FROM solve_ratings WHERE user_id = ? ORDER BY rating ASC
+        ", [$userId]);
+
+        // Get tag distribution
+        $tagDist = DB::select("
+            SELECT tags, solved_count FROM solve_tags WHERE user_id = ? ORDER BY solved_count DESC
+        ", [$userId]);
+
+        // Get recent submissions
+        $recentSubs = DB::select("
+            SELECT * FROM (
+                SELECT s.sub_id, p.title, p.platform, s.status, s.submission_time
+                FROM submissions s
+                JOIN problems p ON s.problem_id = p.problem_id
+                WHERE s.user_id = ?
+                ORDER BY s.submission_time DESC
+            ) WHERE ROWNUM <= 5
+        ", [$userId]);
+
+        // Get recommendations
+        $recommendations = DB::select("
+            SELECT p.problem_id, p.title, p.rating, p.tags, p.platform
+            FROM recommendations r
+            JOIN problems p ON r.problem_id = p.problem_id
+            WHERE r.user_id = ?
+            ORDER BY r.rec_date DESC
+        ", [$userId]);
+
+        // Get CF handle
+        $user = DB::selectOne("SELECT cf_handle FROM users WHERE user_id = ?", [$userId]);
+
+        return view('home', [
+            'username' => Session::get('username'),
+            'cf_handle' => $user->cf_handle ?? null,
+            'total_solves' => $totalSolves,
+            'rating_cats' => $ratingCats,
+            'tag_cats' => $tagCats,
+            'rating_dist' => $ratingDist,
+            'tag_dist' => $tagDist,
+            'recent_subs' => $recentSubs,
+            'recommendations' => $recommendations,
+        ]);
     }
 }
