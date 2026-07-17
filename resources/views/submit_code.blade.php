@@ -20,6 +20,14 @@
         </div>
     </div>
     <h2 style="margin-top: 12px; border: none; padding: 0;">{{ $problem->title }}</h2>
+    @if($problem->cf_contest_id && $problem->cf_index)
+    <p style="margin-top: 8px;">
+        <a href="https://codeforces.com/problemset/problem/{{ $problem->cf_contest_id }}/{{ $problem->cf_index }}" 
+           target="_blank" style="color: #3498db; font-size: 14px;">
+            View problem statement on Codeforces &rarr;
+        </a>
+    </p>
+    @endif
 </div>
 
 <div class="card">
@@ -40,7 +48,7 @@ int main() {
         </div>
         
         <button type="submit" class="btn btn-success">Submit Code</button>
-        <a href="/problems/{{ $problem->problem_id }}" class="btn" style="background: #95a5a6; color: white; margin-left: 8px;">View Problem</a>
+        <a href="/problems" class="btn" style="background: #95a5a6; color: white; margin-left: 8px;">Cancel</a>
     </form>
 </div>
 @endsection

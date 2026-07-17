@@ -22,25 +22,20 @@
             <label>Codeforces Handle</label>
             <input type="text" name="cf_handle" class="form-control" 
                    value="{{ $user->cf_handle ?? '' }}" 
-                   placeholder="e.g. tourist">
-            <p style="font-size: 12px; color: #7f8c8d; margin-top: 6px;">
-                Enter your Codeforces handle to sync your submissions automatically.
-            </p>
+                   placeholder="e.g. tourist" required>
         </div>
         <button type="submit" class="btn btn-primary">Save Profile</button>
     </form>
 </div>
 
-@if($user->cf_handle)
 <div class="card">
     <h2>Codeforces Sync</h2>
     <p style="color: #555; margin-bottom: 16px; font-size: 14px;">
-        Your handle: <strong>{{ $user->cf_handle }}</strong>
+        Your handle: <strong>{{ $user->cf_handle ?? 'Not set' }}</strong>
     </p>
     <a href="/sync-codeforces" class="btn btn-success">Sync Submissions from Codeforces</a>
     <p style="font-size: 12px; color: #7f8c8d; margin-top: 10px;">
         This will fetch your last 50 submissions from Codeforces and add them here.
     </p>
 </div>
-@endif
 @endsection

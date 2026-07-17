@@ -87,11 +87,6 @@
             color: white;
         }
         .btn-danger:hover { background: #c0392b; }
-        .btn-warning {
-            background: #f39c12;
-            color: white;
-        }
-        .btn-warning:hover { background: #e67e22; }
         .btn-sm { padding: 6px 14px; font-size: 13px; }
         .form-group { margin-bottom: 16px; }
         .form-group label {
@@ -278,30 +273,6 @@
         .verdict-tle { color: #f39c12; font-weight: 600; }
         .verdict-re { color: #9b59b6; font-weight: 600; }
         .verdict-ce { color: #e67e22; font-weight: 600; }
-        .stats-row {
-            display: flex;
-            gap: 16px;
-            margin-top: 8px;
-            font-size: 13px;
-            color: #7f8c8d;
-        }
-        .statement-box {
-            background: #fafbfc;
-            border: 1px solid #e8ecf1;
-            border-radius: 8px;
-            padding: 20px;
-            line-height: 1.8;
-            font-size: 15px;
-        }
-        .statement-box h3 { color: #2c3e50; margin-bottom: 12px; }
-        .cf-badge {
-            background: #1ba94c;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-        }
     </style>
 </head>
 <body>
@@ -313,7 +284,6 @@
             <a href="/problems" class="{{ request()->is('problems*') ? 'active' : '' }}">Problems</a>
             <a href="/submissions" class="{{ request()->is('submissions*') ? 'active' : '' }}">Submissions</a>
             <a href="/recommendations" class="{{ request()->is('recommendations') ? 'active' : '' }}">Recommendations</a>
-            <a href="/profile" class="{{ request()->is('profile') ? 'active' : '' }}">Profile</a>
             <a href="/logout">Logout ({{ Session::get('username') }})</a>
         </div>
     </nav>

@@ -18,16 +18,15 @@ class CodeforcesController extends Controller
         $user = DB::selectOne("SELECT cf_handle FROM users WHERE user_id = ?", [$userId]);
 
         if (!$user || !$user->cf_handle) {
-            return redirect('/home')->with('error', 'Please set your Codeforces handle first in profile settings.');
+            return redirect('/profile')->with('error', 'Please set your Codeforces handle first.');
         }
 
         $handle = $user->cf_handle;
 
-        // Fetch submissions from Codeforces API
         $response = Http::get("https://codeforces.com/api/user.status?handle={$handle}&from=1&count=50");
 
         if (!$response->successful()) {
-            return redirect('/home')->with('error', 'Failed to fetch Codeforces data. Please check your handle.');
+            return redirect('/profile')->with('error', 'Failed to fetch Codeforces data. Check your handle.');
         }
 
         $submissions = $response->json()['result'] ?? [];
@@ -40,36 +39,27 @@ class CodeforcesController extends Controller
             $index = $problem['index'] ?? '';
             $problemName = $contestId . $index . ' - ' . ($problem['name'] ?? 'Unknown');
 
-            // Map Codeforces verdict to our status
             $status = $this->mapVerdict($verdict);
 
-            // Find problem in our database
             $dbProblem = DB::selectOne("SELECT problem_id, rating, tags FROM problems WHERE cf_contest_id = ? AND cf_index = ?", [$contestId, $index]);
 
             if (!$dbProblem) {
-                // Add problem if not exists
                 $rating = $problem['rating'] ?? 800;
                 $tags = implode(',', $problem['tags'] ?? []);
-                
+
                 DB::insert('INSERT INTO problems (title, rating, tags, platform, cf_contest_id, cf_index) VALUES (?, ?, ?, ?, ?, ?)', [
-                    $problemName,
-                    $rating,
-                    $tags,
-                    'Codeforces',
-                    (string)$contestId,
-                    $index
+                    $problemName, $rating, $tags, 'Codeforces', (string)$contestId, $index
                 ]);
-                
+
                 $dbProblem = DB::selectOne("SELECT problem_id, rating, tags FROM problems WHERE cf_contest_id = ? AND cf_index = ?", [$contestId, $index]);
             }
 
-            // Check if already synced
             $existing = DB::selectOne("SELECT COUNT(*) as cnt FROM submissions WHERE user_id = ? AND problem_id = ? AND status = ?", [
                 $userId, $dbProblem->problem_id, $status
             ]);
 
             if ($existing->cnt == 0 && $status != 'In Queue') {
-                // Insert via PL/SQL
+                // Call PL/SQL procedure sp_add_submission
                 DB::statement("
                     BEGIN
                         sp_add_submission(:user_id, :problem_id, :status, :code, :time_ms, :memory_kb, :rating, :tags);
@@ -89,7 +79,7 @@ class CodeforcesController extends Controller
             }
         }
 
-        // Regenerate recommendations
+        // Call PL/SQL procedure sp_generate_recommendations
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
         return redirect('/submissions')->with('success', "Synced {$syncedCount} submissions from Codeforces!");

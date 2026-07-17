@@ -57,15 +57,12 @@ class SubmissionController extends Controller
         $problemId = $request->problem_id;
         $code = $request->code;
 
-        // Get problem details
         $problem = DB::selectOne("SELECT rating, tags FROM problems WHERE problem_id = ?", [$problemId]);
         $rating = $problem->rating ?? 800;
         $tags = $problem->tags ?? 'general';
 
-        // Simulate judge - verdict based on problem difficulty
         $verdict = $this->simulateJudge($rating);
 
-        // Simulate execution stats
         $timeMs = rand(100, 2000);
         $memoryKb = rand(1000, 256000);
 
@@ -85,7 +82,7 @@ class SubmissionController extends Controller
             'tags' => $tags,
         ]);
 
-        // Regenerate recommendations
+        // Call PL/SQL procedure sp_generate_recommendations
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
         $msg = $verdict == 'Accepted' ? 'Problem solved!' : 'Verdict: ' . $verdict;

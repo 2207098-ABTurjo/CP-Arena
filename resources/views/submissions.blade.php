@@ -5,7 +5,6 @@
 @section('content')
 <div class="page-header">
     <h1>My Submissions</h1>
-    <a href="/sync-codeforces" class="btn btn-warning">Sync from Codeforces</a>
 </div>
 
 <div class="card">
@@ -19,7 +18,7 @@
                     <th>Verdict</th>
                     <th>Time</th>
                     <th>Memory</th>
-                    <th>Source</th>
+                    <th>Submitted</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,13 +44,7 @@
                     </td>
                     <td>{{ $s->time_ms }} ms</td>
                     <td>{{ round($s->memory_kb / 1024, 1) }} MB</td>
-                    <td>
-                        @if($s->source == 'codeforces')
-                            <span class="cf-badge">CF</span>
-                        @else
-                            <span class="badge badge-blue">Web</span>
-                        @endif
-                    </td>
+                    <td style="color: #7f8c8d; font-size: 13px;">{{ $s->submission_time }}</td>
                 </tr>
                 @endforeach
             </tbody>

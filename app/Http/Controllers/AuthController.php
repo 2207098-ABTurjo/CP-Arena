@@ -25,14 +25,22 @@ class AuthController extends Controller
             'username' => 'required|unique:users,username',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6|confirmed',
+            'cf_handle' => 'required|string|max:50',
         ]);
 
-        DB::insert('INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)', [
+        DB::insert('INSERT INTO users (username, email, password, cf_handle, role) VALUES (?, ?, ?, ?, ?)', [
             $request->username,
             $request->email,
             Hash::make($request->password),
+            $request->cf_handle,
             'user'
         ]);
+
+        // Get the newly created user_id
+        $user = DB::selectOne("SELECT user_id FROM users WHERE username = ?", [$request->username]);
+
+        // Generate initial recommendations for new user
+        DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $user->user_id]);
 
         return redirect('/login')->with('success', 'Account created! Please login.');
     }
@@ -83,7 +91,7 @@ class AuthController extends Controller
         $userId = Session::get('user_id');
 
         $request->validate([
-            'cf_handle' => 'nullable|string|max:50',
+            'cf_handle' => 'required|string|max:50',
         ]);
 
         DB::update("UPDATE users SET cf_handle = ? WHERE user_id = ?", [
@@ -102,7 +110,7 @@ class AuthController extends Controller
 
         $userId = Session::get('user_id');
 
-        // Get stats using direct SQL
+        // Use direct SQL instead of PL/SQL OUT parameters (driver limitation)
         $totalSolves = DB::selectOne("
             SELECT COUNT(*) as cnt FROM submissions WHERE user_id = ? AND status = 'Accepted'
         ", [$userId])->cnt ?? 0;
@@ -115,15 +123,54 @@ class AuthController extends Controller
             SELECT COUNT(*) as cnt FROM solve_tags WHERE user_id = ?
         ", [$userId])->cnt ?? 0;
 
-        // Get rating distribution
-        $ratingDist = DB::select("
-            SELECT rating, solved_count FROM solve_ratings WHERE user_id = ? ORDER BY rating ASC
-        ", [$userId]);
+        // Use PL/SQL cursor procedures
+        $ratingDist = [];
+        try {
+            $result = DB::select("
+                DECLARE
+                    c SYS_REFCURSOR;
+                BEGIN
+                    sp_get_rating_distribution(:user_id, c);
+                    :cursor := c;
+                END;
+            ", [
+                'user_id' => $userId,
+                'cursor' => ['value' => null, 'type' => \PDO::PARAM_STMT],
+            ]);
+            
+            if (isset($result['cursor']) && $result['cursor'] instanceof \PDOStatement) {
+                while ($row = $result['cursor']->fetch(\PDO::FETCH_ASSOC)) {
+                    $ratingDist[] = (object)$row;
+                }
+                $result['cursor']->closeCursor();
+            }
+        } catch (\Exception $e) {
+            $ratingDist = DB::select("SELECT rating, solved_count FROM solve_ratings WHERE user_id = ? ORDER BY rating ASC", [$userId]);
+        }
 
-        // Get tag distribution
-        $tagDist = DB::select("
-            SELECT tags, solved_count FROM solve_tags WHERE user_id = ? ORDER BY solved_count DESC
-        ", [$userId]);
+        $tagDist = [];
+        try {
+            $result = DB::select("
+                DECLARE
+                    c SYS_REFCURSOR;
+                BEGIN
+                    sp_get_tag_distribution(:user_id, c);
+                    :cursor := c;
+                END;
+            ", [
+                'user_id' => $userId,
+                'cursor' => ['value' => null, 'type' => \PDO::PARAM_STMT],
+            ]);
+            
+            if (isset($result['cursor']) && $result['cursor'] instanceof \PDOStatement) {
+                while ($row = $result['cursor']->fetch(\PDO::FETCH_ASSOC)) {
+                    $tagDist[] = (object)$row;
+                }
+                $result['cursor']->closeCursor();
+            }
+        } catch (\Exception $e) {
+            $tagDist = DB::select("SELECT tags, solved_count FROM solve_tags WHERE user_id = ? ORDER BY solved_count DESC", [$userId]);
+        }
 
         // Get recent submissions
         $recentSubs = DB::select("

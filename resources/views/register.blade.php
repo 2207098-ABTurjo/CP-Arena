@@ -23,6 +23,13 @@
             <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
         </div>
         <div class="form-group">
+            <label>Codeforces Handle</label>
+            <input type="text" name="cf_handle" class="form-control" placeholder="e.g. tourist" required>
+            <p style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
+                Your submissions will be synced automatically from Codeforces
+            </p>
+        </div>
+        <div class="form-group">
             <label>Password</label>
             <input type="password" name="password" class="form-control" placeholder="Min 6 characters" required>
         </div>

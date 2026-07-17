@@ -37,10 +37,11 @@ class ProblemController extends Controller
             $params[] = $request->max_rating;
         }
 
+        // Sorting - Oracle compatible syntax (no NULLS LAST)
         $sort = $request->get('sort', 'rating_asc');
         switch ($sort) {
             case 'rating_desc':
-                $query .= " ORDER BY rating DESC NULLS LAST";
+                $query .= " ORDER BY rating DESC";
                 break;
             case 'title_asc':
                 $query .= " ORDER BY title ASC";
@@ -49,7 +50,7 @@ class ProblemController extends Controller
                 $query .= " ORDER BY title DESC";
                 break;
             default:
-                $query .= " ORDER BY rating ASC NULLS LAST";
+                $query .= " ORDER BY rating ASC";
         }
 
         $problems = DB::select($query, $params);
@@ -91,7 +92,6 @@ class ProblemController extends Controller
             return redirect('/problems')->with('error', 'Problem not found');
         }
 
-        // Check if user has solved this
         $userId = Session::get('user_id');
         $solved = DB::selectOne("
             SELECT COUNT(*) as cnt FROM submissions 

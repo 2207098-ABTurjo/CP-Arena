@@ -7,8 +7,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        $pdo = DB::connection()->getPdo();
+
         // Procedure 1: Get user dashboard stats
-        DB::unprepared("
+        $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_get_user_stats (
                 p_user_id IN NUMBER,
                 total_solves OUT NUMBER,
@@ -31,7 +33,7 @@ return new class extends Migration
         ");
 
         // Procedure 2: Add submission and update stats
-        DB::unprepared("
+        $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_add_submission (
                 p_user_id IN NUMBER,
                 p_problem_id IN NUMBER,
@@ -75,17 +77,22 @@ return new class extends Migration
             END;
         ");
 
-        // Procedure 3: Generate recommendations (NO users table reference)
-        DB::unprepared("
+        // Procedure 3: Generate recommendations (FIXED - always returns something)
+        $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_generate_recommendations (
                 p_user_id IN NUMBER
             ) AS
                 v_user_max_rating NUMBER;
                 v_weak_tag VARCHAR2(100);
                 v_problem_count NUMBER;
+                v_has_submissions NUMBER;
             BEGIN
                 DELETE FROM recommendations WHERE user_id = p_user_id;
 
+                -- Check if user has any submissions
+                SELECT COUNT(*) INTO v_has_submissions FROM submissions WHERE user_id = p_user_id;
+
+                -- Find user's max solved rating
                 BEGIN
                     SELECT MAX(rating) INTO v_user_max_rating
                     FROM solve_ratings
@@ -99,6 +106,7 @@ return new class extends Migration
                     v_user_max_rating := 800;
                 END IF;
 
+                -- Find weakest tag with exception handling
                 BEGIN
                     SELECT tags INTO v_weak_tag FROM (
                         SELECT tags FROM solve_tags
@@ -107,13 +115,28 @@ return new class extends Migration
                     ) WHERE ROWNUM = 1;
                 EXCEPTION
                     WHEN NO_DATA_FOUND THEN
-                        v_weak_tag := 'implementation';
+                        v_weak_tag := NULL;
                 END;
+
+                -- If no weak tag found, pick a random common tag
+                IF v_weak_tag IS NULL THEN
+                    BEGIN
+                        SELECT tags INTO v_weak_tag FROM (
+                            SELECT DISTINCT tags FROM problems
+                            WHERE tags IS NOT NULL
+                            AND ROWNUM <= 10
+                        ) WHERE ROWNUM = 1;
+                    EXCEPTION
+                        WHEN NO_DATA_FOUND THEN
+                            v_weak_tag := 'implementation';
+                    END;
+                END IF;
 
                 IF v_weak_tag IS NULL THEN
                     v_weak_tag := 'implementation';
                 END IF;
 
+                -- Try to find problems in weak tag and rating range
                 SELECT COUNT(*) INTO v_problem_count FROM problems
                 WHERE tags LIKE '%' || v_weak_tag || '%'
                 AND rating BETWEEN v_user_max_rating - 200 AND v_user_max_rating + 200
@@ -121,7 +144,27 @@ return new class extends Migration
                     SELECT problem_id FROM submissions WHERE user_id = p_user_id
                 );
 
+                -- If no problems found, expand rating range
+                IF v_problem_count = 0 THEN
+                    SELECT COUNT(*) INTO v_problem_count FROM problems
+                    WHERE tags LIKE '%' || v_weak_tag || '%'
+                    AND rating BETWEEN v_user_max_rating - 500 AND v_user_max_rating + 500
+                    AND problem_id NOT IN (
+                        SELECT problem_id FROM submissions WHERE user_id = p_user_id
+                    );
+                END IF;
+
+                -- If still no problems, pick any unsolved problems
+                IF v_problem_count = 0 THEN
+                    SELECT COUNT(*) INTO v_problem_count FROM problems
+                    WHERE problem_id NOT IN (
+                        SELECT problem_id FROM submissions WHERE user_id = p_user_id
+                    );
+                END IF;
+
+                -- Insert recommendations based on what we found
                 IF v_problem_count > 0 THEN
+                    -- First try: weak tag + narrow rating range
                     FOR rec IN (
                         SELECT problem_id FROM problems
                         WHERE tags LIKE '%' || v_weak_tag || '%'
@@ -134,12 +177,59 @@ return new class extends Migration
                         INSERT INTO recommendations (user_id, problem_id, rec_date)
                         VALUES (p_user_id, rec.problem_id, SYSDATE);
                     END LOOP;
+
+                    -- If less than 5, fill with weak tag + expanded range
+                    SELECT COUNT(*) INTO v_problem_count FROM recommendations WHERE user_id = p_user_id;
+                    IF v_problem_count < 5 THEN
+                        FOR rec IN (
+                            SELECT problem_id FROM problems
+                            WHERE tags LIKE '%' || v_weak_tag || '%'
+                            AND rating BETWEEN v_user_max_rating - 500 AND v_user_max_rating + 500
+                            AND problem_id NOT IN (
+                                SELECT problem_id FROM submissions WHERE user_id = p_user_id
+                            )
+                            AND problem_id NOT IN (
+                                SELECT problem_id FROM recommendations WHERE user_id = p_user_id
+                            )
+                            AND ROWNUM <= 5
+                        ) LOOP
+                            INSERT INTO recommendations (user_id, problem_id, rec_date)
+                            VALUES (p_user_id, rec.problem_id, SYSDATE);
+                        END LOOP;
+                    END IF;
+
+                    -- If still less than 5, fill with any unsolved problems
+                    SELECT COUNT(*) INTO v_problem_count FROM recommendations WHERE user_id = p_user_id;
+                    IF v_problem_count < 5 THEN
+                        FOR rec IN (
+                            SELECT problem_id FROM problems
+                            WHERE problem_id NOT IN (
+                                SELECT problem_id FROM submissions WHERE user_id = p_user_id
+                            )
+                            AND problem_id NOT IN (
+                                SELECT problem_id FROM recommendations WHERE user_id = p_user_id
+                            )
+                            AND ROWNUM <= 5
+                        ) LOOP
+                            INSERT INTO recommendations (user_id, problem_id, rec_date)
+                            VALUES (p_user_id, rec.problem_id, SYSDATE);
+                        END LOOP;
+                    END IF;
+                ELSE
+                    -- Absolute fallback: just pick any 5 problems
+                    FOR rec IN (
+                        SELECT problem_id FROM problems
+                        WHERE ROWNUM <= 5
+                    ) LOOP
+                        INSERT INTO recommendations (user_id, problem_id, rec_date)
+                        VALUES (p_user_id, rec.problem_id, SYSDATE);
+                    END LOOP;
                 END IF;
             END;
         ");
 
         // Procedure 4: Get rating-wise solve distribution
-        DB::unprepared("
+        $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_get_rating_distribution (
                 p_user_id IN NUMBER,
                 result_cursor OUT SYS_REFCURSOR
@@ -154,7 +244,7 @@ return new class extends Migration
         ");
 
         // Procedure 5: Get tag-wise solve distribution
-        DB::unprepared("
+        $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_get_tag_distribution (
                 p_user_id IN NUMBER,
                 result_cursor OUT SYS_REFCURSOR
@@ -171,10 +261,11 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::unprepared("DROP PROCEDURE sp_get_user_stats");
-        DB::unprepared("DROP PROCEDURE sp_add_submission");
-        DB::unprepared("DROP PROCEDURE sp_generate_recommendations");
-        DB::unprepared("DROP PROCEDURE sp_get_rating_distribution");
-        DB::unprepared("DROP PROCEDURE sp_get_tag_distribution");
+        $pdo = DB::connection()->getPdo();
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_get_user_stats'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_add_submission'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_generate_recommendations'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_get_rating_distribution'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_get_tag_distribution'; EXCEPTION WHEN OTHERS THEN NULL; END;");
     }
 };

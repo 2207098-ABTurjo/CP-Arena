@@ -5,7 +5,7 @@
 @section('content')
 <div class="page-header">
     <h1>Problem List</h1>
-    <span style="color: #7f8c8d; font-size: 14px;">{{ count($problems) }} problems loaded from Codeforces</span>
+    <span style="color: #7f8c8d; font-size: 14px;">{{ count($problems) }} problems loaded</span>
 </div>
 
 <div class="card">
@@ -40,9 +40,10 @@
             <div class="form-group">
                 <label>Sort By</label>
                 <select name="sort" class="form-control">
-                    <option value="rating_asc" {{ ($filters['sort'] ?? '') == 'rating_asc' ? 'selected' : '' }}>Rating (Low to High)</option>
+                    <option value="rating_asc" {{ ($filters['sort'] ?? 'rating_asc') == 'rating_asc' ? 'selected' : '' }}>Rating (Low to High)</option>
                     <option value="rating_desc" {{ ($filters['sort'] ?? '') == 'rating_desc' ? 'selected' : '' }}>Rating (High to Low)</option>
                     <option value="title_asc" {{ ($filters['sort'] ?? '') == 'title_asc' ? 'selected' : '' }}>Title (A-Z)</option>
+                    <option value="title_desc" {{ ($filters['sort'] ?? '') == 'title_desc' ? 'selected' : '' }}>Title (Z-A)</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary btn-sm" style="margin-bottom: 0;">Filter</button>
@@ -66,11 +67,7 @@
             <tbody>
                 @foreach($problems as $p)
                 <tr>
-                    <td>
-                        <a href="/problems/{{ $p->problem_id }}" style="color: #3498db; text-decoration: none; font-weight: 500;">
-                            {{ $p->title }}
-                        </a>
-                    </td>
+                    <td><a href="/problems/{{ $p->problem_id }}" style="color: #3498db; text-decoration: none;">{{ $p->title }}</a></td>
                     <td><span class="badge badge-purple">{{ $p->rating ?? 'N/A' }}</span></td>
                     <td>
                         <div class="tag-list">
