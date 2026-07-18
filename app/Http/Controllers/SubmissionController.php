@@ -17,7 +17,7 @@ class SubmissionController extends Controller
         $userId = Session::get('user_id');
 
         $submissions = DB::select("
-            SELECT s.sub_id, p.title, p.platform, p.rating, p.tags, s.status, s.time_ms, s.memory_kb, s.submission_time
+            SELECT s.sub_id, p.title, p.platform, p.rating, p.tags, s.status, s.submission_time
             FROM submissions s
             JOIN problems p ON s.problem_id = p.problem_id
             WHERE s.user_id = ?
@@ -55,7 +55,6 @@ class SubmissionController extends Controller
 
         $userId = Session::get('user_id');
         $problemId = $request->problem_id;
-        $code = $request->code;
 
         $problem = DB::selectOne("SELECT rating, tags FROM problems WHERE problem_id = ?", [$problemId]);
         $rating = $problem->rating ?? 800;
@@ -63,30 +62,46 @@ class SubmissionController extends Controller
 
         $verdict = $this->simulateJudge($rating);
 
-        $timeMs = rand(100, 2000);
-        $memoryKb = rand(1000, 256000);
-
-        // Call PL/SQL procedure sp_add_submission
+        // Call simplified PL/SQL procedure
         DB::statement("
             BEGIN
-                sp_add_submission(:user_id, :problem_id, :status, :code, :time_ms, :memory_kb, :rating, :tags);
+                sp_add_submission(:user_id, :problem_id, :status, :rating, :tags);
             END;
         ", [
             'user_id' => $userId,
             'problem_id' => $problemId,
             'status' => $verdict,
-            'code' => $code,
-            'time_ms' => $timeMs,
-            'memory_kb' => $memoryKb,
             'rating' => $rating,
             'tags' => $tags,
         ]);
 
-        // Call PL/SQL procedure sp_generate_recommendations
+        // PHP handles individual tag splitting
+        if ($verdict == 'Accepted') {
+            $this->updateIndividualTags($userId, $tags);
+        }
+
+        // Generate recommendations
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
         $msg = $verdict == 'Accepted' ? 'Problem solved!' : 'Verdict: ' . $verdict;
         return redirect('/submissions')->with('success', $msg);
+    }
+
+    private function updateIndividualTags($userId, $tagsString)
+    {
+        $tagsArray = array_map('trim', explode(',', $tagsString));
+        
+        foreach ($tagsArray as $tag) {
+            if (empty($tag)) continue;
+            
+            $exists = DB::selectOne("SELECT COUNT(*) as cnt FROM solve_tags WHERE user_id = ? AND tags = ?", [$userId, $tag]);
+            
+            if ($exists->cnt > 0) {
+                DB::update("UPDATE solve_tags SET solved_count = solved_count + 1 WHERE user_id = ? AND tags = ?", [$userId, $tag]);
+            } else {
+                DB::insert("INSERT INTO solve_tags (user_id, tags, solved_count) VALUES (?, ?, 1)", [$userId, $tag]);
+            }
+        }
     }
 
     private function simulateJudge($rating)

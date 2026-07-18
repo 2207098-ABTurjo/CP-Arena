@@ -59,30 +59,48 @@ class CodeforcesController extends Controller
             ]);
 
             if ($existing->cnt == 0 && $status != 'In Queue') {
-                // Call PL/SQL procedure sp_add_submission
+                // Call simplified PL/SQL procedure
                 DB::statement("
                     BEGIN
-                        sp_add_submission(:user_id, :problem_id, :status, :code, :time_ms, :memory_kb, :rating, :tags);
+                        sp_add_submission(:user_id, :problem_id, :status, :rating, :tags);
                     END;
                 ", [
                     'user_id' => $userId,
                     'problem_id' => $dbProblem->problem_id,
                     'status' => $status,
-                    'code' => '// Synced from Codeforces',
-                    'time_ms' => $sub['timeConsumedMillis'] ?? 0,
-                    'memory_kb' => ($sub['memoryConsumedBytes'] ?? 0) / 1024,
                     'rating' => $dbProblem->rating ?? 800,
                     'tags' => $dbProblem->tags ?? 'general',
                 ]);
+
+                // PHP handles individual tag splitting
+                if ($status == 'Accepted') {
+                    $this->updateIndividualTags($userId, $dbProblem->tags ?? 'general');
+                }
 
                 $syncedCount++;
             }
         }
 
-        // Call PL/SQL procedure sp_generate_recommendations
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
         return redirect('/submissions')->with('success', "Synced {$syncedCount} submissions from Codeforces!");
+    }
+
+    private function updateIndividualTags($userId, $tagsString)
+    {
+        $tagsArray = array_map('trim', explode(',', $tagsString));
+        
+        foreach ($tagsArray as $tag) {
+            if (empty($tag)) continue;
+            
+            $exists = DB::selectOne("SELECT COUNT(*) as cnt FROM solve_tags WHERE user_id = ? AND tags = ?", [$userId, $tag]);
+            
+            if ($exists->cnt > 0) {
+                DB::update("UPDATE solve_tags SET solved_count = solved_count + 1 WHERE user_id = ? AND tags = ?", [$userId, $tag]);
+            } else {
+                DB::insert("INSERT INTO solve_tags (user_id, tags, solved_count) VALUES (?, ?, 1)", [$userId, $tag]);
+            }
+        }
     }
 
     private function mapVerdict($cfVerdict)

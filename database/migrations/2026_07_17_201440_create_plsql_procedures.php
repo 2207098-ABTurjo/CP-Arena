@@ -32,22 +32,19 @@ return new class extends Migration
             END;
         ");
 
-        // Procedure 2: Add submission and update stats
+        // Procedure 2: Add submission and update stats (simplified)
         $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_add_submission (
                 p_user_id IN NUMBER,
                 p_problem_id IN NUMBER,
                 p_status IN VARCHAR2,
-                p_code IN VARCHAR2,
-                p_time_ms IN NUMBER,
-                p_memory_kb IN NUMBER,
                 p_rating IN NUMBER,
                 p_tags IN VARCHAR2
             ) AS
                 v_count NUMBER;
             BEGIN
-                INSERT INTO submissions (user_id, problem_id, code, status, time_ms, memory_kb, submission_time)
-                VALUES (p_user_id, p_problem_id, p_code, p_status, p_time_ms, p_memory_kb, SYSTIMESTAMP);
+                INSERT INTO submissions (user_id, problem_id, status, submission_time)
+                VALUES (p_user_id, p_problem_id, p_status, SYSTIMESTAMP);
 
                 IF p_status = 'Accepted' THEN
                     SELECT COUNT(*) INTO v_count FROM solve_ratings
@@ -61,23 +58,11 @@ return new class extends Migration
                         INSERT INTO solve_ratings (user_id, rating, solved_count)
                         VALUES (p_user_id, p_rating, 1);
                     END IF;
-
-                    SELECT COUNT(*) INTO v_count FROM solve_tags
-                    WHERE user_id = p_user_id AND tags = p_tags;
-
-                    IF v_count > 0 THEN
-                        UPDATE solve_tags
-                        SET solved_count = solved_count + 1
-                        WHERE user_id = p_user_id AND tags = p_tags;
-                    ELSE
-                        INSERT INTO solve_tags (user_id, tags, solved_count)
-                        VALUES (p_user_id, p_tags, 1);
-                    END IF;
                 END IF;
             END;
         ");
 
-        // Procedure 3: Generate recommendations (FIXED - always returns something)
+        // Procedure 3: Generate recommendations
         $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_generate_recommendations (
                 p_user_id IN NUMBER
@@ -89,10 +74,8 @@ return new class extends Migration
             BEGIN
                 DELETE FROM recommendations WHERE user_id = p_user_id;
 
-                -- Check if user has any submissions
                 SELECT COUNT(*) INTO v_has_submissions FROM submissions WHERE user_id = p_user_id;
 
-                -- Find user's max solved rating
                 BEGIN
                     SELECT MAX(rating) INTO v_user_max_rating
                     FROM solve_ratings
@@ -106,7 +89,6 @@ return new class extends Migration
                     v_user_max_rating := 800;
                 END IF;
 
-                -- Find weakest tag with exception handling
                 BEGIN
                     SELECT tags INTO v_weak_tag FROM (
                         SELECT tags FROM solve_tags
@@ -118,7 +100,6 @@ return new class extends Migration
                         v_weak_tag := NULL;
                 END;
 
-                -- If no weak tag found, pick a random common tag
                 IF v_weak_tag IS NULL THEN
                     BEGIN
                         SELECT tags INTO v_weak_tag FROM (
@@ -136,7 +117,6 @@ return new class extends Migration
                     v_weak_tag := 'implementation';
                 END IF;
 
-                -- Try to find problems in weak tag and rating range
                 SELECT COUNT(*) INTO v_problem_count FROM problems
                 WHERE tags LIKE '%' || v_weak_tag || '%'
                 AND rating BETWEEN v_user_max_rating - 200 AND v_user_max_rating + 200
@@ -144,7 +124,6 @@ return new class extends Migration
                     SELECT problem_id FROM submissions WHERE user_id = p_user_id
                 );
 
-                -- If no problems found, expand rating range
                 IF v_problem_count = 0 THEN
                     SELECT COUNT(*) INTO v_problem_count FROM problems
                     WHERE tags LIKE '%' || v_weak_tag || '%'
@@ -154,7 +133,6 @@ return new class extends Migration
                     );
                 END IF;
 
-                -- If still no problems, pick any unsolved problems
                 IF v_problem_count = 0 THEN
                     SELECT COUNT(*) INTO v_problem_count FROM problems
                     WHERE problem_id NOT IN (
@@ -162,9 +140,7 @@ return new class extends Migration
                     );
                 END IF;
 
-                -- Insert recommendations based on what we found
                 IF v_problem_count > 0 THEN
-                    -- First try: weak tag + narrow rating range
                     FOR rec IN (
                         SELECT problem_id FROM problems
                         WHERE tags LIKE '%' || v_weak_tag || '%'
@@ -178,7 +154,6 @@ return new class extends Migration
                         VALUES (p_user_id, rec.problem_id, SYSDATE);
                     END LOOP;
 
-                    -- If less than 5, fill with weak tag + expanded range
                     SELECT COUNT(*) INTO v_problem_count FROM recommendations WHERE user_id = p_user_id;
                     IF v_problem_count < 5 THEN
                         FOR rec IN (
@@ -198,7 +173,6 @@ return new class extends Migration
                         END LOOP;
                     END IF;
 
-                    -- If still less than 5, fill with any unsolved problems
                     SELECT COUNT(*) INTO v_problem_count FROM recommendations WHERE user_id = p_user_id;
                     IF v_problem_count < 5 THEN
                         FOR rec IN (
@@ -216,7 +190,6 @@ return new class extends Migration
                         END LOOP;
                     END IF;
                 ELSE
-                    -- Absolute fallback: just pick any 5 problems
                     FOR rec IN (
                         SELECT problem_id FROM problems
                         WHERE ROWNUM <= 5

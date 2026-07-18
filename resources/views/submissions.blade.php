@@ -16,8 +16,6 @@
                     <th>Platform</th>
                     <th>Rating</th>
                     <th>Verdict</th>
-                    <th>Time</th>
-                    <th>Memory</th>
                     <th>Submitted</th>
                 </tr>
             </thead>
@@ -42,8 +40,6 @@
                             <span class="badge badge-gray">{{ $s->status }}</span>
                         @endif
                     </td>
-                    <td>{{ $s->time_ms }} ms</td>
-                    <td>{{ round($s->memory_kb / 1024, 1) }} MB</td>
                     <td style="color: #7f8c8d; font-size: 13px;">{{ $s->submission_time }}</td>
                 </tr>
                 @endforeach
