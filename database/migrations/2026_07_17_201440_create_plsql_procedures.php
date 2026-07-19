@@ -32,7 +32,8 @@ return new class extends Migration
             END;
         ");
 
-        // Procedure 2: Add submission and update stats (simplified)
+        // Procedure 2: Add submission (solve_ratings bookkeeping is now handled
+        // by trg_after_submission_insert below, so this procedure just inserts).
         $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_add_submission (
                 p_user_id IN NUMBER,
@@ -41,24 +42,9 @@ return new class extends Migration
                 p_rating IN NUMBER,
                 p_tags IN VARCHAR2
             ) AS
-                v_count NUMBER;
             BEGIN
                 INSERT INTO submissions (user_id, problem_id, status, submission_time)
                 VALUES (p_user_id, p_problem_id, p_status, SYSTIMESTAMP);
-
-                IF p_status = 'Accepted' THEN
-                    SELECT COUNT(*) INTO v_count FROM solve_ratings
-                    WHERE user_id = p_user_id AND rating = p_rating;
-
-                    IF v_count > 0 THEN
-                        UPDATE solve_ratings
-                        SET solved_count = solved_count + 1
-                        WHERE user_id = p_user_id AND rating = p_rating;
-                    ELSE
-                        INSERT INTO solve_ratings (user_id, rating, solved_count)
-                        VALUES (p_user_id, p_rating, 1);
-                    END IF;
-                END IF;
             END;
         ");
 
@@ -201,33 +187,71 @@ return new class extends Migration
             END;
         ");
 
-        // Procedure 4: Get rating-wise solve distribution
+        // Function 1 (converted from Procedure 4): Get rating-wise solve distribution.
+        // Same single-cursor output, expressed as a RETURN instead of an OUT param.
         $pdo->exec("
-            CREATE OR REPLACE PROCEDURE sp_get_rating_distribution (
-                p_user_id IN NUMBER,
-                result_cursor OUT SYS_REFCURSOR
-            ) AS
+            CREATE OR REPLACE FUNCTION fn_get_rating_distribution (
+                p_user_id IN NUMBER
+            ) RETURN SYS_REFCURSOR AS
+                result_cursor SYS_REFCURSOR;
             BEGIN
                 OPEN result_cursor FOR
                     SELECT rating, solved_count
                     FROM solve_ratings
                     WHERE user_id = p_user_id
                     ORDER BY rating ASC;
+                RETURN result_cursor;
             END;
         ");
 
-        // Procedure 5: Get tag-wise solve distribution
+        // Function 2 (converted from Procedure 5): Get tag-wise solve distribution.
+        // Same single-cursor output, expressed as a RETURN instead of an OUT param.
         $pdo->exec("
-            CREATE OR REPLACE PROCEDURE sp_get_tag_distribution (
-                p_user_id IN NUMBER,
-                result_cursor OUT SYS_REFCURSOR
-            ) AS
+            CREATE OR REPLACE FUNCTION fn_get_tag_distribution (
+                p_user_id IN NUMBER
+            ) RETURN SYS_REFCURSOR AS
+                result_cursor SYS_REFCURSOR;
             BEGIN
                 OPEN result_cursor FOR
                     SELECT tags, solved_count
                     FROM solve_tags
                     WHERE user_id = p_user_id
                     ORDER BY solved_count DESC;
+                RETURN result_cursor;
+            END;
+        ");
+
+        // Trigger: after a submission is inserted, keep solve_ratings in sync.
+        // This is the same logic that used to live inline in sp_add_submission —
+        // moved here so it fires automatically on any insert into submissions,
+        // not just ones that go through the procedure.
+        $pdo->exec("
+            CREATE OR REPLACE TRIGGER trg_after_submission_insert
+            AFTER INSERT ON submissions
+            FOR EACH ROW
+            WHEN (NEW.status = 'Accepted')
+            DECLARE
+                v_rating NUMBER;
+                v_count  NUMBER;
+            BEGIN
+                SELECT rating INTO v_rating
+                FROM problems
+                WHERE problem_id = :NEW.problem_id;
+
+                SELECT COUNT(*) INTO v_count FROM solve_ratings
+                WHERE user_id = :NEW.user_id AND rating = v_rating;
+
+                IF v_count > 0 THEN
+                    UPDATE solve_ratings
+                    SET solved_count = solved_count + 1
+                    WHERE user_id = :NEW.user_id AND rating = v_rating;
+                ELSE
+                    INSERT INTO solve_ratings (user_id, rating, solved_count)
+                    VALUES (:NEW.user_id, v_rating, 1);
+                END IF;
+            EXCEPTION
+                WHEN NO_DATA_FOUND THEN
+                    NULL; -- problem_id not found; nothing to update
             END;
         ");
     }
@@ -238,7 +262,8 @@ return new class extends Migration
         $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_get_user_stats'; EXCEPTION WHEN OTHERS THEN NULL; END;");
         $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_add_submission'; EXCEPTION WHEN OTHERS THEN NULL; END;");
         $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_generate_recommendations'; EXCEPTION WHEN OTHERS THEN NULL; END;");
-        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_get_rating_distribution'; EXCEPTION WHEN OTHERS THEN NULL; END;");
-        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE sp_get_tag_distribution'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP FUNCTION fn_get_rating_distribution'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP FUNCTION fn_get_tag_distribution'; EXCEPTION WHEN OTHERS THEN NULL; END;");
+        $pdo->exec("BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER trg_after_submission_insert'; EXCEPTION WHEN OTHERS THEN NULL; END;");
     }
 };

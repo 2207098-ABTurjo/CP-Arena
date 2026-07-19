@@ -130,7 +130,7 @@ class AuthController extends Controller
                 DECLARE
                     c SYS_REFCURSOR;
                 BEGIN
-                    sp_get_rating_distribution(:user_id, c);
+                    c := fn_get_rating_distribution(:user_id);
                     :cursor := c;
                 END;
             ", [
@@ -154,7 +154,7 @@ class AuthController extends Controller
                 DECLARE
                     c SYS_REFCURSOR;
                 BEGIN
-                    sp_get_tag_distribution(:user_id, c);
+                    c := fn_get_tag_distribution(:user_id);
                     :cursor := c;
                 END;
             ", [
