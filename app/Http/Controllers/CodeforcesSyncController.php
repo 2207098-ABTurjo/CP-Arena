@@ -44,14 +44,12 @@ class CodeforcesSyncController extends Controller
 
                 if (empty($cfContestId) || empty($cfIndex)) continue;
 
-                // Find matching problem in our database
                 $problem = DB::selectOne("
                     SELECT * FROM problems
                     WHERE cf_contest_id = ? AND cf_index = ?
                 ", [$cfContestId, $cfIndex]);
 
                 if (!$problem) {
-                    // Auto-add problem if not exists
                     $title = $cfContestId . $cfIndex . ' - ' . ($sub['problem']['name'] ?? 'Unknown');
                     $rating = $sub['problem']['rating'] ?? 800;
                     $tags = implode(',', $sub['problem']['tags'] ?? []);
@@ -67,7 +65,6 @@ class CodeforcesSyncController extends Controller
                     ", [$cfContestId, $cfIndex]);
                 }
 
-                // Check if already synced
                 $exists = DB::selectOne("
                     SELECT COUNT(*) as cnt FROM submissions
                     WHERE user_id = ? AND problem_id = ? AND source = 'codeforces'
@@ -75,7 +72,6 @@ class CodeforcesSyncController extends Controller
 
                 if ($exists->cnt > 0) continue;
 
-                // Sync using PL/SQL
                 if ($verdict) {
                     DB::statement("
                         BEGIN
@@ -95,7 +91,6 @@ class CodeforcesSyncController extends Controller
                 }
             }
 
-            // Regenerate recommendations
             DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
             return redirect('/submissions')->with('success', "Synced {$syncedCount} submissions from Codeforces!");

@@ -59,7 +59,6 @@ class CodeforcesController extends Controller
             ]);
 
             if ($existing->cnt == 0 && $status != 'In Queue') {
-                // Call simplified PL/SQL procedure
                 DB::statement("
                     BEGIN
                         sp_add_submission(:user_id, :problem_id, :status, :rating, :tags);
@@ -72,7 +71,6 @@ class CodeforcesController extends Controller
                     'tags' => $dbProblem->tags ?? 'general',
                 ]);
 
-                // PHP handles individual tag splitting
                 if ($status == 'Accepted') {
                     $this->updateIndividualTags($userId, $dbProblem->tags ?? 'general');
                 }

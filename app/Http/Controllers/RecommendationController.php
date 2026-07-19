@@ -15,10 +15,8 @@ class RecommendationController extends Controller
 
         $userId = Session::get('user_id');
 
-        // Call PL/SQL procedure sp_generate_recommendations
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
-        // Get recommendations
         $recommendations = DB::select("
             SELECT p.problem_id, p.title, p.rating, p.tags, p.platform, r.rec_date
             FROM recommendations r

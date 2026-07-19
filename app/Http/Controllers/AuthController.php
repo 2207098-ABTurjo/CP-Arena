@@ -36,10 +36,8 @@ class AuthController extends Controller
             'user'
         ]);
 
-        // Get the newly created user_id
         $user = DB::selectOne("SELECT user_id FROM users WHERE username = ?", [$request->username]);
 
-        // Generate initial recommendations for new user
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $user->user_id]);
 
         return redirect('/login')->with('success', 'Account created! Please login.');
@@ -110,7 +108,6 @@ class AuthController extends Controller
 
         $userId = Session::get('user_id');
 
-        // Use direct SQL instead of PL/SQL OUT parameters (driver limitation)
         $totalSolves = DB::selectOne("
             SELECT COUNT(*) as cnt FROM submissions WHERE user_id = ? AND status = 'Accepted'
         ", [$userId])->cnt ?? 0;
@@ -123,14 +120,13 @@ class AuthController extends Controller
             SELECT COUNT(*) as cnt FROM solve_tags WHERE user_id = ?
         ", [$userId])->cnt ?? 0;
 
-        // Use PL/SQL cursor procedures
         $ratingDist = [];
         try {
             $result = DB::select("
                 DECLARE
                     c SYS_REFCURSOR;
                 BEGIN
-                    c := fn_get_rating_distribution(:user_id);
+                    sp_get_rating_distribution(:user_id, c);
                     :cursor := c;
                 END;
             ", [
@@ -154,7 +150,7 @@ class AuthController extends Controller
                 DECLARE
                     c SYS_REFCURSOR;
                 BEGIN
-                    c := fn_get_tag_distribution(:user_id);
+                    sp_get_tag_distribution(:user_id, c);
                     :cursor := c;
                 END;
             ", [
@@ -172,7 +168,6 @@ class AuthController extends Controller
             $tagDist = DB::select("SELECT tags, solved_count FROM solve_tags WHERE user_id = ? ORDER BY solved_count DESC", [$userId]);
         }
 
-        // Get recent submissions
         $recentSubs = DB::select("
             SELECT * FROM (
                 SELECT s.sub_id, p.title, p.platform, s.status, s.submission_time
@@ -183,7 +178,6 @@ class AuthController extends Controller
             ) WHERE ROWNUM <= 5
         ", [$userId]);
 
-        // Get recommendations
         $recommendations = DB::select("
             SELECT p.problem_id, p.title, p.rating, p.tags, p.platform
             FROM recommendations r
@@ -192,7 +186,6 @@ class AuthController extends Controller
             ORDER BY r.rec_date DESC
         ", [$userId]);
 
-        // Get CF handle
         $user = DB::selectOne("SELECT cf_handle FROM users WHERE user_id = ?", [$userId]);
 
         return view('home', [

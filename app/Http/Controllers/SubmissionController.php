@@ -62,7 +62,6 @@ class SubmissionController extends Controller
 
         $verdict = $this->simulateJudge($rating);
 
-        // Call simplified PL/SQL procedure
         DB::statement("
             BEGIN
                 sp_add_submission(:user_id, :problem_id, :status, :rating, :tags);
@@ -75,12 +74,10 @@ class SubmissionController extends Controller
             'tags' => $tags,
         ]);
 
-        // PHP handles individual tag splitting
         if ($verdict == 'Accepted') {
             $this->updateIndividualTags($userId, $tags);
         }
 
-        // Generate recommendations
         DB::statement("BEGIN sp_generate_recommendations(:user_id); END;", ['user_id' => $userId]);
 
         $msg = $verdict == 'Accepted' ? 'Problem solved!' : 'Verdict: ' . $verdict;

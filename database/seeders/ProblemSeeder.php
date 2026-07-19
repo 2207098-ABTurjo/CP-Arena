@@ -38,7 +38,6 @@ class ProblemSeeder extends Seeder
                 }
             }
         } catch (\Exception $e) {
-            // API failed, use fallback
         }
         
         $fallbacks = [

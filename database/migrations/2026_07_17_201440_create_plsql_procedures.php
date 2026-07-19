@@ -9,7 +9,7 @@ return new class extends Migration
     {
         $pdo = DB::connection()->getPdo();
 
-        // Procedure 1: Get user dashboard stats
+        
         $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_get_user_stats (
                 p_user_id IN NUMBER,
@@ -32,8 +32,7 @@ return new class extends Migration
             END;
         ");
 
-        // Procedure 2: Add submission (solve_ratings bookkeeping is now handled
-        // by trg_after_submission_insert below, so this procedure just inserts).
+       
         $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_add_submission (
                 p_user_id IN NUMBER,
@@ -48,7 +47,6 @@ return new class extends Migration
             END;
         ");
 
-        // Procedure 3: Generate recommendations
         $pdo->exec("
             CREATE OR REPLACE PROCEDURE sp_generate_recommendations (
                 p_user_id IN NUMBER
@@ -187,8 +185,6 @@ return new class extends Migration
             END;
         ");
 
-        // Function 1 (converted from Procedure 4): Get rating-wise solve distribution.
-        // Same single-cursor output, expressed as a RETURN instead of an OUT param.
         $pdo->exec("
             CREATE OR REPLACE FUNCTION fn_get_rating_distribution (
                 p_user_id IN NUMBER
@@ -204,8 +200,7 @@ return new class extends Migration
             END;
         ");
 
-        // Function 2 (converted from Procedure 5): Get tag-wise solve distribution.
-        // Same single-cursor output, expressed as a RETURN instead of an OUT param.
+        
         $pdo->exec("
             CREATE OR REPLACE FUNCTION fn_get_tag_distribution (
                 p_user_id IN NUMBER
@@ -221,10 +216,7 @@ return new class extends Migration
             END;
         ");
 
-        // Trigger: after a submission is inserted, keep solve_ratings in sync.
-        // This is the same logic that used to live inline in sp_add_submission —
-        // moved here so it fires automatically on any insert into submissions,
-        // not just ones that go through the procedure.
+        
         $pdo->exec("
             CREATE OR REPLACE TRIGGER trg_after_submission_insert
             AFTER INSERT ON submissions

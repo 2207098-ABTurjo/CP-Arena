@@ -37,7 +37,6 @@ class ProblemController extends Controller
             $params[] = $request->max_rating;
         }
 
-        // Sorting - Oracle compatible syntax (no NULLS LAST)
         $sort = $request->get('sort', 'rating_asc');
         switch ($sort) {
             case 'rating_desc':
@@ -55,7 +54,6 @@ class ProblemController extends Controller
 
         $problems = DB::select($query, $params);
 
-        // Get all unique tags for filter dropdown
         $allTags = DB::select("SELECT DISTINCT tags FROM problems WHERE tags IS NOT NULL");
         $tagList = [];
         foreach ($allTags as $t) {
@@ -69,7 +67,6 @@ class ProblemController extends Controller
         }
         sort($tagList);
 
-        // Get all platforms
         $platforms = DB::select("SELECT DISTINCT platform FROM problems WHERE platform IS NOT NULL");
 
         return view('problems', [
